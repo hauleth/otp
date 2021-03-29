@@ -804,7 +804,8 @@ reconfigure() ->
         [case logger:remove_handler(Id) of
              ok -> ok;
              {error, Reason} -> throw({remove, Id, Reason})
-         end || #{id := Id} <- get_handler_config()],
+         end || #{id := Id} <- logger:get_handler_config()],
+        logger:unset_module_level(),
         internal_init_logger()
     catch throw:Reason ->
         {error, Reason}
