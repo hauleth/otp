@@ -54,9 +54,6 @@
          add_handlers/1,
          reconfigure/0]).
 
-%% Private configuration
--export([internal_init_logger/0]).
-
 %% Misc
 -export([compare_levels/2]).
 -export([set_process_metadata/1, update_process_metadata/1,
