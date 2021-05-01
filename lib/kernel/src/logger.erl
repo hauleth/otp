@@ -54,6 +54,8 @@
          add_handlers/1,
          reconfigure/0]).
 
+-export([internal_init_logger/0]).
+
 %% Misc
 -export([compare_levels/2]).
 -export([set_process_metadata/1, update_process_metadata/1,
@@ -804,6 +806,11 @@ reconfigure() ->
          end || #{id := Id} <- logger:get_handler_config()],
         logger:unset_module_level(),
         internal_init_logger()
+    of
+        ok ->
+            logger:add_handlers(kernel);
+        Error ->
+            Error
     catch throw:Reason ->
         {error, Reason}
     end.

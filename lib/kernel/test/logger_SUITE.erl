@@ -24,6 +24,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/logger.hrl").
 -include_lib("kernel/src/logger_internal.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -define(str,"Log from "++atom_to_list(?FUNCTION_NAME)++
             ":"++integer_to_list(?LINE)).
@@ -1016,8 +1017,7 @@ kernel_config(Config) ->
         logger_test_lib:setup(Config,[{error_logger,false}]),
 
     %% Same once more, to get coverage
-    ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
+    ok = rpc:call(Node,logger,internal_init_logger,[]),
     LC = rpc:call(Node,logger,get_config,[]),
 
     %% This shall mean the same as above, but using 'logger' parameter
@@ -1026,14 +1026,12 @@ kernel_config(Config) ->
     ok = rpc:call(Node,application,set_env,
                   [kernel,logger,[{handler,default,undefined}]]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     LC = rpc:call(Node,logger,get_config,[]),
 
     %% Silent
     ok = rpc:call(Node,application,unset_env,[kernel,logger]),
     ok = rpc:call(Node,application,set_env,[kernel,error_logger,silent]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
@@ -1042,29 +1040,24 @@ kernel_config(Config) ->
     ok = rpc:call(Node,application,unset_env,[kernel,error_logger]),
     ok = rpc:call(Node,application,unset_env,[kernel,logger]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,config:=#{type:=standard_io}}],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
 
     %% error_logger=tty (same as default)
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     ok = rpc:call(Node,application,set_env,[kernel,error_logger,tty]),
     ok = rpc:call(Node,application,unset_env,[kernel,logger]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,config:=#{type:=standard_io}}],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
 
     %% error_logger={file,File}
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     F = filename:join(?config(priv_dir,Config),
                       atom_to_list(?FUNCTION_NAME)++".log"),
     ok = rpc:call(Node,application,set_env,[kernel,error_logger,{file,F}]),
     ok = rpc:call(Node,application,unset_env,[kernel,logger]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,
                    config:=#{type:=file,file:=F,modes:=Modes}}],
@@ -1073,53 +1066,45 @@ kernel_config(Config) ->
 
 
     %% Same, but using 'logger' parameter instead of 'error_logger'
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     ok = rpc:call(Node,application,unset_env,[kernel,error_logger]),
     ok = rpc:call(Node,application,set_env,[kernel,logger,
                                             [{handler,default,logger_std_h,
                                               #{config=>#{type=>{file,F}}}}]]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,
                    config:=#{type:=file,file:=F,modes:=Modes}}],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
 
     %% Same, but with type={file,File,Modes}
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     ok = rpc:call(Node,application,unset_env,[kernel,error_logger]),
     M = [raw,write],
     ok = rpc:call(Node,application,set_env,[kernel,logger,
                                             [{handler,default,logger_std_h,
                                               #{config=>#{type=>{file,F,M}}}}]]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,
                    config:=#{type:=file,file:=F,modes:=[delayed_write|M]}}],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
 
     %% Same, but with disk_log handler
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     ok = rpc:call(Node,application,unset_env,[kernel,error_logger]),
     ok = rpc:call(Node,application,set_env,[kernel,logger,
                                             [{handler,default,logger_disk_log_h,
                                               #{config=>#{file=>F}}}]]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=log,filters:=[]},
       handlers:=[#{id:=default,filters:=DF,config:=#{file:=F}}],
       module_levels:=[]} = rpc:call(Node,logger,get_config,[]),
 
     %% Set primary filters and module level. No default handler.
-    ok = rpc:call(Node,logger,remove_handler,[default]),% so it can be added again
     ok = rpc:call(Node,application,unset_env,[kernel,error_logger]),
     ok = rpc:call(Node,application,set_env,
                   [kernel,logger,[{handler,default,undefined},
                                   {filters,stop,[{f1,{fun(_,_) -> log end,ok}}]},
                                   {module_level,debug,[?MODULE]}]]),
     ok = rpc:call(Node,logger,reconfigure,[]),
-    ok = rpc:call(Node,logger,add_handlers,[kernel]),
     #{primary:=#{filter_default:=stop,filters:=[_]},
       handlers:=[],
       module_levels:=[{?MODULE,debug}]} = rpc:call(Node,logger,get_config,[]),

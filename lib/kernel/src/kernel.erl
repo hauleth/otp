@@ -31,7 +31,7 @@
 %%%-----------------------------------------------------------------
 start(_, []) ->
     %% Setup the logger and configure the kernel logger environment
-    ok = logger:reconfigure(),
+    ok = logger:internal_init_logger(),
     case supervisor:start_link({local, kernel_sup}, kernel, []) of
 	{ok, Pid} ->
             ok = erl_signal_handler:start(),
